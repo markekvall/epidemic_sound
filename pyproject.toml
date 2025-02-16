@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "epidemic"
+version = "0.1.0"
+description = ""
+authors = ["Mark Ekvall <mark.e.ekvall@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+pydantic = "^2.10.6"
+pydantic-settings = "^2.7.1"
+fastapi = "^0.115.8"
+uvicorn = "^0.34.0"
+sqlalchemy = "^2.0.38"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
