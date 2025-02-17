@@ -1,6 +1,5 @@
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
-from app.infrastructure.playlist_repo import PlaylistRepository
 from app.schemas.playlist_schema import PlaylistCreate, PlaylistResponse, PlaylistsResponse
 from app.application.interfaces.playlist_repository import IPlaylistRepository
 
