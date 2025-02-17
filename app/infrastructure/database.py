@@ -19,6 +19,12 @@ playlist_sound = Table(
     Column("sound_id", Integer, ForeignKey("sounds.id"))
 )
 
+sound_credit = Table(
+    "sound_credit", Base.metadata,
+    Column("sound_id", Integer, ForeignKey("sounds.id")),
+    Column("credit_id", Integer, ForeignKey("credits.id"))
+)
+
 class Playlist(Base):
     __tablename__ = "playlists"
 
@@ -37,22 +43,24 @@ class Sound(Base):
     bpm = Column(Integer, nullable=False)
     duration_in_seconds = Column(Integer, nullable=False)
 
-    credits = relationship("Credit", back_populates="sound", cascade="all, delete-orphan")
+    credits = relationship("Credit", secondary=sound_credit, back_populates="sounds")
     genres = relationship("Genre", secondary=sound_genre, back_populates="sounds")
     playlists = relationship("Playlist", secondary=playlist_sound, back_populates="sounds")
 
 
 class Credit(Base):
     __tablename__ = "credits"
+
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     role = Column(String, nullable=False)
-    sound_id = Column(Integer, ForeignKey("sounds.id"), nullable=False)
 
-    sound = relationship("Sound", back_populates="credits")
+    sounds = relationship("Sound", secondary=sound_credit, back_populates="credits")
+
 
 class Genre(Base):
     __tablename__ = "genres"
+
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, nullable=False)
 

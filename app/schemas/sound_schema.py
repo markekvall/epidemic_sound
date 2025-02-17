@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import List
 
 class CreditCreate(BaseModel):
@@ -19,18 +19,14 @@ class GenreResponse(BaseModel):
     id: int
     name: str
 
-    class Config:
-        orm_mode = True
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class CreditResponse(BaseModel):
     id: int
     name: str
     role: str
 
-    class Config:
-        orm_mode = True
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class SoundResponse(BaseModel):
     id: int
@@ -40,9 +36,7 @@ class SoundResponse(BaseModel):
     genres: List[GenreResponse]
     credits: List[CreditResponse]
 
-    class Config:
-        orm_mode = True
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class SoundsResponse(BaseModel):
     data: List[SoundResponse]
