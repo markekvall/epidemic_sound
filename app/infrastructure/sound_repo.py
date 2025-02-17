@@ -6,41 +6,44 @@ from app.application.interfaces.sound_repository import ISoundRepository
 class SoundRepository(ISoundRepository):
 
     def create_sound(self, db: Session, sound_data) -> Sound:
+        try:
+            sound = Sound(
+                title=sound_data.title,
+                bpm=sound_data.bpm,
+                duration_in_seconds=sound_data.duration_in_seconds
+            )
+
+            for genre_name in sound_data.genres:
+                genre = db.query(Genre).filter(
+                    Genre.name == genre_name).first()
+                
+                if genre is None:
+                    genre = Genre(name=genre_name)
+                    db.add(genre)
+                    db.flush()
+                sound.genres.append(genre)
+
+            db.add(sound)
+
+            for credit_data in sound_data.credits:
+                credit = db.query(Credit).filter(
+                    Credit.name == credit_data.name,
+                    Credit.role == credit_data.role
+                ).first()
+
+                if credit is None:
+                    credit = Credit(name=credit_data.name, role=credit_data.role)
+                    db.add(credit)
+                    db.flush()
+                sound.credits.append(credit)
+
+            db.commit()
+            db.refresh(sound)
+            return sound
         
-        sound = Sound(
-            title=sound_data.title,
-            bpm=sound_data.bpm,
-            duration_in_seconds=sound_data.duration_in_seconds
-        )
-
-        for genre_name in sound_data.genres:
-            genre = db.query(Genre).filter(
-                Genre.name == genre_name).first()
-            
-            if genre is None:
-                genre = Genre(name=genre_name)
-                db.add(genre)
-                db.flush()
-            sound.genres.append(genre)
-
-        db.add(sound)
-        db.flush()
-
-        for credit_data in sound_data.credits:
-            credit = db.query(Credit).filter(
-                Credit.name == credit_data.name,
-                Credit.role == credit_data.role
-            ).first()
-
-            if credit is None:
-                credit = Credit(name=credit_data.name, role=credit_data.role)
-                db.add(credit)
-                db.flush()
-            sound.credits.append(credit)
-
-        db.commit()
-        db.refresh(sound)
-        return sound
+        except Exception as e:
+            db.rollback()
+            raise e
         
 
     def get_by_name_and_artist(self, db: Session, title: str, artist_name: str) -> Optional[Sound]:
