@@ -31,7 +31,6 @@ class Playlist(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, nullable=False)
 
-    # Many-to-many relationship with Sound
     sounds = relationship("Sound", secondary=playlist_sound, back_populates="playlists")
 
 

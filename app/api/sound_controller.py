@@ -2,10 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.application.sound_service import SoundService
 from app.application.playlist_service import PlaylistService
-from app.schemas.playlist_schema import PlaylistCreateRequest, PlaylistResponse, PlaylistsResponse
-from app.schemas.sound_schema import SoundCreate, SoundsResponse, SoundResponse
-from app.infrastructure.playlist_repo import PlaylistRepository
-from app.infrastructure.sound_repo import SoundRepository
+from app.schemas.playlist_schema import PlaylistCreateRequest, PlaylistsResponse
+from app.schemas.sound_schema import SoundCreate, SoundsResponse
 from app.api.dependencies import get_db, get_sound_service, get_playlist_service
 
 router = APIRouter()
