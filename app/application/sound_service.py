@@ -2,14 +2,20 @@ import logging
 import random
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 from app.infrastructure.database import Sound
-from app.infrastructure.sound_repo import SoundRepository
-from app.schemas.sound_schema import SoundCreate, SoundsResponse, SoundResponse, GenreResponse, CreditResponse
-from app.infrastructure.playlist_repo import PlaylistRepository
+from app.schemas.sound_schema import SoundCreate, SoundData, SoundsResponse, SoundResponse, GenreResponse, CreditResponse
+from app.application.interfaces.sound_repository import ISoundRepository
+from app.application.interfaces.playlist_repository import IPlaylistRepository
+
 
 logger = logging.getLogger(__name__)
 
 class SoundService:
+
+    def __init__(self, sound_repository: ISoundRepository, playlist_repo: IPlaylistRepository):
+        self.sound_repository = sound_repository
+        self.playlist_repo = playlist_repo
 
     @staticmethod
     def _create_sound_response(sound: Sound) -> SoundResponse:
@@ -18,74 +24,57 @@ class SoundService:
             title=sound.title,
             bpm=sound.bpm,
             duration_in_seconds=sound.duration_in_seconds,
-            genres=[GenreResponse.from_orm(genre) for genre in sound.genres],
-            credits=[CreditResponse.from_orm(credit) for credit in sound.credits]
+            genres=[GenreResponse.model_validate(genre) for genre in sound.genres],
+            credits=[CreditResponse.model_validate(credit) for credit in sound.credits]
         )
 
 
-    @staticmethod
-    def create_sounds(db: Session, request_data: SoundCreate) -> SoundsResponse:
-        logger.info("Creating sounds...") #make more detailed
-        
+    def create_sounds(self, db: Session, request_data: SoundCreate) -> SoundsResponse:
+        logger.info(f"Attempting to create {len(request_data.data)} sounds...")      
+
         sound_responses = []
 
-        with db.begin():
+        for sound_data in request_data.data:
             try:
-                for sound_data in request_data.data:
-                    existing_sound = SoundRepository.get_by_name_and_artist(db, sound_data.title, sound_data.credits[0].name)
-                    
-                    if existing_sound:
-                        logger.warning(f"Sound '{sound_data.title}' by '{sound_data.credits[0].name}' already exists. Returning existing song.")
-                        sound = existing_sound
-                    else:
-                        sound = SoundRepository.create(db, sound_data)
-                    
-                    sound_responses.append(SoundService._create_sound_response(sound))
+                sound = self._create_or_get_existing_sound(db, sound_data)
+                sound_responses.append(self._create_sound_response(sound))
+            except SQLAlchemyError as e:
+                logger.error(f"Error creating sound '{sound_data.title}': {str(e)}")
+                continue
 
-            except Exception as e:
-                logger.error(f"Unexpected error: {str(e)}")
-                db.rollback()
-                raise
-
+        logger.info(f"Successfully processed {len(sound_responses)} out of {len(request_data.data)} sounds.")
         return SoundsResponse(data=sound_responses)
     
 
-    @staticmethod
-    def get_sounds(db: Session):
+    def get_sounds(self, db: Session):
         logger.info("Fetching all sounds...")
 
-        sounds = SoundRepository.get_all(db)
+        sounds = self.sound_repository.get_all(db)
         sound_responses = [SoundService._create_sound_response(sound) for sound in sounds]
         
         return SoundsResponse(data=sound_responses)
 
 
-    @staticmethod
-    def get_recommended_sound(db: Session, playlist_id: int) -> SoundsResponse:
-        
-        playlist = PlaylistRepository.get_by_id(db, playlist_id)
+    def get_recommended_sound(self, db: Session, playlist_id: int) -> SoundsResponse:
+        logger.info("Fetching recommended sound...")
+
+        playlist = self.playlist_repo.get_by_id(db, playlist_id)
         if not playlist:
             raise HTTPException(status_code=404, detail="Playlist not found")
         
         playlist_sounds = playlist.sounds
-        playlist_genres = {genre.id for sound in playlist_sounds for genre in sound.genres}
+        playlist_genre_ids = {genre.id for sound in playlist_sounds for genre in sound.genres}
 
-        if not playlist_genres:
+        if not playlist_genre_ids:
             raise HTTPException(status_code=400, detail="Playlist has no genres")
 
-        # Get all sounds, filtering those that share at least one genre with the playlist
-        all_sounds = SoundRepository.get_all(db)
-        genre_matched_sounds = [
-            sound for sound in all_sounds
-            if any(genre.id in playlist_genres for genre in sound.genres) and sound.id not in {s.id for s in playlist_sounds}
-        ]
+        genre_matched_sounds = self.sound_repository.get_all_from_genre_not_in_playlist(db, playlist_sounds, playlist_genre_ids)
 
-        # If we have matching sounds, pick a random one
         if genre_matched_sounds:
             selected_sound = random.choice(genre_matched_sounds)
         else:
-            # If no genre-based match is found, return any random sound (excluding playlist sounds)
-            available_sounds = [s for s in all_sounds if s.id not in {s.id for s in playlist_sounds}]
+            logger.info("No genre match found, getting random sound")
+            available_sounds = self.sound_repository.get_all(db)
             selected_sound = random.choice(available_sounds) if available_sounds else None
 
         if not selected_sound:
@@ -94,3 +83,14 @@ class SoundService:
         recommended_sound = SoundService._create_sound_response(selected_sound)
         
         return SoundsResponse(data=[recommended_sound])
+    
+
+    def _create_or_get_existing_sound(self, db: Session, sound_data: SoundData) -> Sound:
+        artist_name = sound_data.credits[0].name
+        existing_sound = self.sound_repository.get_by_name_and_artist(db, sound_data.title, artist_name)
+        
+        if existing_sound:
+            logger.warning(f"Sound '{sound_data.title}' by '{artist_name}' already exists. Returning existing song.")
+            return existing_sound
+        
+        return self.sound_repository.create_sound(db, sound_data)
